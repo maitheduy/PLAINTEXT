@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Zenodo Description Cleaner</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+    color: #2d3748;
+  }
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    overflow: hidden;
+  }
+  header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    padding: 24px 32px;
+    text-align: center;
+  }
+  header h1 { font-size: 1.8rem; margin-bottom: 6px; }
+  header p { opacity: 0.9; font-size: 0.95rem; }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px 24px;
+    background: #f7fafc;
+    border-bottom: 1px solid #e2e8f0;
+    align-items: center;
+  }
+  .toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: #4a5568;
+    cursor: pointer;
+  }
+  .toolbar input[type="checkbox"] {
+    width: 16px; height: 16px;
+    accent-color: #667eea;
+    cursor: pointer;
+  }
+  .mode-switch {
+    display: flex;
+    background: #e2e8f0;
+    border-radius: 8px;
+    padding: 3px;
+    margin-left: auto;
+  }
+  .mode-switch button {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #4a5568;
+    transition: all 0.2s;
+  }
+  .mode-switch button.active {
+    background: #fff;
+    color: #667eea;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+  }
+  .panel-header {
+    padding: 12px 20px;
+    background: #edf2f7;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 0.95rem;
+  }
+  .panel:first-child { border-right: 1px solid #e2e8f0; }
+  .panel textarea {
+    flex: 1;
+    border: none;
+    padding: 20px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+    background: #fff;
+  }
+  .panel .preview {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    background: #fff;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .panel .preview.html-mode {
+    white-space: normal;
+  }
+  .panel .preview.html-mode h1,
+  .panel .preview.html-mode h2,
+  .panel .preview.html-mode h3 { margin: 12px 0 8px; color: #2d3748; }
+  .panel .preview.html-mode p { margin-bottom: 10px; }
+  .panel .preview.html-mode ul { margin: 8px 0 8px 24px; }
+  .panel .preview.html-mode li { margin-bottom: 4px; }
+  .panel .preview.html-mode strong { color: #667eea; }
+  .panel .preview.html-mode em { color: #718096; }
+
+  .stats {
+    padding: 8px 20px;
+    background: #f7fafc;
+    border-top: 1px solid #e2e8f0;
+    font-size: 0.8rem;
+    color: #718096;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .actions {
+    padding: 16px 24px;
+    background: #f7fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  button.action {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
+  .btn-secondary {
+    background: #fff;
+    color: #4a5568;
+    border: 1px solid #cbd5e0;
+  }
+  .btn-secondary:hover { background: #edf2f7; }
+  .btn-success {
+    background: #48bb78;
+    color: #fff;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #2d3748;
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 1000;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .panel:first-child { border-right: none; border-bottom: 1px solid #e2e8f0; }
+    .panel { min-height: 300px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🧹 Zenodo Description Cleaner</h1>
+    <p>Biến output Markdown của AI thành text sạch, đẹp để dán vào Zenodo</p>
+  </header>
+
+  <div class="toolbar">
+    <label><input type="checkbox" id="optCutIntro" checked> Cắt đoạn mở đầu AI</label>
+    <label><input type="checkbox" id="optCutNote" checked> Cắt đoạn "Lưu ý" cuối</label>
+    <label><input type="checkbox" id="optKeepEmoji" checked> Giữ emoji</label>
+    <label><input type="checkbox" id="optBullets" checked> Bullet → •</label>
+    <div class="mode-switch">
+      <button id="modePlain" class="active">Plain text</button>
+      <button id="modeHtml">HTML đẹp</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="panel">
+      <div class="panel-header">
+        <span>📥 Input (dán output từ AI vào đây)</span>
+        <button class="action btn-secondary" onclick="loadSample()">Tải ví dụ</button>
+      </div>
+      <textarea id="input" placeholder="Dán text Markdown của bạn vào đây..."></textarea>
+      <div class="stats">
+        <span id="inChars">0 ký tự</span>
+        <span id="inLines">0 dòng</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span>📤 Output (sạch, sẵn sàng dán)</span>
+        <button class="action btn-success" onclick="copyOutput()">📋 Copy</button>
+      </div>
+      <div id="output" class="preview"></div>
+      <div class="stats">
+        <span id="outChars">0 ký tự</span>
+        <span id="outLines">0 dòng</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="action btn-primary" onclick="process()">✨ Làm sạch</button>
+    <button class="action btn-secondary" onclick="clearAll()">🗑️ Xóa tất cả</button>
+    <button class="action btn-secondary" onclick="swapIO()">🔄 Swap</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SAMPLE = `Dưới đây là bản Description được biên soạn súc tích, thể hiện được chiều sâu triết học và tính đột phá của tài liệu, với độ dài khoảng 1/3 trang A4, phù hợp để đưa vào trường **Description** trên Zenodo:
+
+***
+
+**Mô tả tài liệu (Description):**
+
+Tài liệu **"Bắt đầu bằng động từ 'Đi': Hạt giống của Automata"** do tác giả S.S. DuyMT biên soạn là một công trình nghiên cứu liên ngành, đề xuất một cách tiếp cận ngược dòng và đầy tính triết học để xây dựng lý thuyết Automata từ Hệ hàm lặp (IFS) và Hình học Fractal.
+
+Thay vì bắt đầu từ các cấu trúc phức tạp (trạng thái, luật chuyển, không gian nhiều chiều), tác phẩm chọn một điểm khởi đầu nguyên thủy nhất: **động từ "đi"**. Từ đó, tác giả xây dựng **"Nguyên lý Dịch chuyển Vi phân"**: *Mọi cấu trúc động có thể được nhìn như sự tích tụ của những dịch chuyển sơ cấp có hướng; ngược lại, một cấu trúc có thể được phân rã thành các dịch chuyển và các quy tắc chuyển tiếp đã tạo nên nó.*
+
+**💡 Tư tưởng cốt lõi:**
+*   **Định nghĩa lại dx:** dx không phải là "một đoạn nhỏ nhất" mà là **"một dự định đi theo hướng"** – một nguyên tố động học (directional intention) chứ không phải một mẩu vật chất hình học.
+*   **Cầu nối Giải tích – Automata:** Tích phân được hiểu là sự *tích tụ* của vô số bước chuyển vi phân (transition), tạo thành quỹ đạo và cấu trúc.
+*   **Tích hợp Ngũ Hành Tư Duy:** Toàn bộ dòng chảy khái niệm được đặt trong vòng tương sinh khép kín: *Bất biến (Mộc) → Tối ưu (Hỏa) → Quan hệ (Thổ) → Đối xứng (Kim) → Tích tụ (Thủy) → Bất biến*.
+
+**🎯 Giá trị và Đối tượng:**
+Tác phẩm mở ra một ngôn ngữ thống nhất cho nghiên cứu Automata từ IFS, dành cho các nhà nghiên cứu về Lý thuyết Tính toán, Hình học Fractal, Hệ động lực.
+
+**Từ khóa (Keywords):**
+*Automata Theory, Iterated Function Systems (IFS), Fractal Geometry, Differential Calculus, Ngũ Hành Tư Duy, S.S. DuyMT.*
+
+***
+
+**💡 Lưu ý khi đăng Zenodo:**
+*   Bản mô tả này nắm bắt được "linh hồn" của tác phẩm.
+*   Bạn nhớ copy phần **Từ khóa (Keywords)** dán vào mục **Tags** của Zenodo.`;
+
+let currentMode = 'plain'; // 'plain' | 'html'
+let lastPlain = '';
+let lastHtml = '';
+
+const input = document.getElementById('input');
+const output = document.getElementById('output');
+
+input.addEventListener('input', () => {
+  updateStats();
+  process();
+});
+
+document.getElementById('optCutIntro').addEventListener('change', process);
+document.getElementById('optCutNote').addEventListener('change', process);
+document.getElementById('optKeepEmoji').addEventListener('change', process);
+document.getElementById('optBullets').addEventListener('change', process);
+
+document.getElementById('modePlain').addEventListener('click', () => setMode('plain'));
+document.getElementById('modeHtml').addEventListener('click', () => setMode('html'));
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('modePlain').classList.toggle('active', mode === 'plain');
+  document.getElementById('modeHtml').classList.toggle('active', mode === 'html');
+  output.classList.toggle('html-mode', mode === 'html');
+  render();
+}
+
+function loadSample() {
+  input.value = SAMPLE;
+  updateStats();
+  process();
+}
+
+function clearAll() {
+  input.value = '';
+  output.innerHTML = '';
+  lastPlain = ''; lastHtml = '';
+  updateStats();
+}
+
+function swapIO() {
+  const current = currentMode === 'plain' ? lastPlain : lastHtml;
+  input.value = current;
+  updateStats();
+  process();
+}
+
+function updateStats() {
+  const text = input.value;
+  document.getElementById('inChars').textContent = text.length + ' ký tự';
+  document.getElementById('inLines').textContent = text.split('\n').length + ' dòng';
+}
+
+function updateOutStats(plainText) {
+  document.getElementById('outChars').textContent = plainText.length + ' ký tự';
+  document.getElementById('outLines').textContent = plainText.split('\n').length + ' dòng';
+}
+
+/* ============== CORE CLEANING ============== */
+function cleanMarkdown(text) {
+  // 1. Cắt đoạn mở đầu AI (trước dấu *** hoặc trước heading đầu tiên)
+  if (document.getElementById('optCutIntro').checked) {
+    // Tìm pattern: "Dưới đây là..." / "Here is..." / "Below is..." cho đến khi gặp *** hoặc heading
+    text = text.replace(/^(?:Dưới đây là|Here is|Below is|Sau đây là|This is)[^\n]*?(?=\n\s*\*{3,}|\n\s*#{1,6}\s|\n\s*\*\*[^*]+\*\*|$)/i, '');
+  }
+
+  // 2. Cắt đoạn "Lưu ý" cuối
+  if (document.getElementById('optCutNote').checked) {
+    // Cắt từ "**💡 Lưu ý" hoặc "**Note" hoặc "**Lưu ý" cho đến hết
+    text = text.replace(/\n\s*\*{0,3}\s*(?:💡\s*)?(?:Lưu ý|Note|Ghi chú)[^*]*\*{0,3}\s*[:\-]?\s*\n[\s\S]*$/i, '');
+    // Cắt luôn phần "***" cuối nếu còn sót
+    text = text.replace(/\n\s*\*{3,}\s*$/g, '');
+  }
+
+  // 3. Bỏ các đường phân cách *** / --- / ___
+  text = text.replace(/^\s*[*_-]{3,}\s*$/gm, '');
+
+  // 4. Bỏ heading markers (# ## ###)
+  text = text.replace(/^#{1,6}\s+/gm, '');
+
+  // 5. Bỏ bold/italic markdown
+  // Xử lý ***bold italic*** trước
+  text = text.replace(/\*{3}([^*\n]+)\*{3}/g, '$1');
+  // **bold**
+  text = text.replace(/\*{2}([^*\n]+)\*{2}/g, '$1');
+  // *italic*  (cẩn thận không chạm bullet)
+  text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, '$1$2');
+  // __bold__
+  text = text.replace(/_{2}([^_\n]+)_{2}/g, '$1');
+  // _italic_
+  text = text.replace(/(^|[^_\w])_([^_\n]+)_(?!\w)/g, '$1$2');
+  // ~~strike~~
+  text = text.replace(/~~([^~\n]+)~~/g, '$1');
+  // `code`
+  text = text.replace(/`([^`\n]+)`/g, '$1');
+
+  // 6. Bullet list: "*   " hoặc "-   " hoặc "* "
+  if (document.getElementById('optBullets').checked) {
+    text = text.replace(/^[\s]*[\*\-]\s{2,}/gm, '• ');
+    text = text.replace(/^[\s]*[\*\-]\s+/gm, '• ');
+  } else {
+    text = text.replace(/^[\s]*[\*\-]\s+/gm, '');
+  }
+
+  // 7. Link [text](url) -> text
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+  // 8. Ảnh ![alt](url) -> alt
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+
+  // 9. Bỏ emoji nếu không muốn giữ
+  if (!document.getElementById('optKeepEmoji').checked) {
+    // Regex cơ bản loại bỏ emoji
+    text = text.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+  }
+
+  // 10. Dọn khoảng trắng thừa
+  text = text.replace(/[ \t]+$/gm, ''); // trailing spaces
+  text = text.replace(/\n{3,}/g, '\n\n'); // nhiều xuống dòng -> 2
+  text = text.trim();
+
+  return text;
+}
+
+/* ============== HTML MODE ============== */
+function toHtml(plainText) {
+  const lines = plainText.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (let line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (inList) { html += '</ul>'; inList = false; }
+      continue;
+    }
+
+    // Bullet
+    if (/^[•\-\*]\s/.test(trimmed)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      const content = trimmed.replace(/^[•\-\*]\s+/, '');
+      html += '<li>' + inlineFormat(content) + '</li>';
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      // Tiêu đề ngắn có emoji đầu dòng (💡, 🎯, 📌) -> h3
+      if (/^[💡🎯📌🔑📘📖✨🌟⭐]\s*\*{0,2}[A-ZÁÀẠẢÃÂẤẦẬẨẪĂẮẰẶẲẴÉÈẺẼÊẾỀỂỄÍÌỈĨÓÒỌỎÕÔỐỒỘỔỖƠỚỜỢỞỠÚÙỤỦŨƯỨỪỬỮÝỲỶỸĐ]/.test(trimmed) && trimmed.length < 80) {
+        html += '<h3>' + inlineFormat(trimmed) + '</h3>';
+      } else if (/^(Mô tả|Description|Tóm tắt|Abstract|Keywords|Từ khóa)[:\s]/i.test(trimmed)) {
+        html += '<h3>' + inlineFormat(trimmed) + '</h3>';
+      } else {
+        html += '<p>' + inlineFormat(trimmed) + '</p>';
+      }
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
+function inlineFormat(s) {
+  // Trong HTML mode, ta vẫn giữ một chút nhấn mạnh cho đẹp
+  // Tìm lại các cụm trong ngoặc kép "..." -> <em>
+  s = s.replace(/"([^"]+)"/g, '<em>"$1"</em>');
+  return s;
+}
+
+/* ============== RENDER ============== */
+function process() {
+  const raw = input.value;
+  if (!raw.trim()) {
+    output.innerHTML = '';
+    lastPlain = ''; lastHtml = '';
+    updateOutStats('');
+    return;
+  }
+  lastPlain = cleanMarkdown(raw);
+  lastHtml = toHtml(lastPlain);
+  render();
+}
+
+function render() {
+  if (currentMode === 'plain') {
+    output.textContent = lastPlain;
+    updateOutStats(lastPlain);
+  } else {
+    output.innerHTML = lastHtml;
+    updateOutStats(lastPlain); // vẫn đếm theo plain để người dùng biết kích thước thực
+  }
+}
+
+/* ============== COPY ============== */
+function copyOutput() {
+  const text = currentMode === 'plain' ? lastPlain : lastHtml;
+  if (!text) { showToast('Chưa có gì để copy!'); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('✅ Đã copy vào clipboard!');
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✅ Đã copy!');
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Khởi tạo
+updateStats();
+</script>
+</body>
+</html>
